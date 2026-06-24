@@ -294,7 +294,9 @@
       color: #8899cc;
       text-transform: uppercase;
     }
-    #usage-hint {
+    #usage-hint,
+    .usage-hint-desktop,
+    .usage-hint-mobile {
       margin-top: 32px;
       font-size: 13px;
       font-weight: 400;
@@ -306,9 +308,26 @@
       justify-content: center;
       gap: 12px;
     }
-    #usage-hint span:nth-child(even) {
+    #usage-hint span:nth-child(even),
+    .usage-hint-desktop span:nth-child(even),
+    .usage-hint-mobile span:nth-child(even) {
       opacity: 0.3;
       font-size: 10px;
+    }
+    /* 桌面端：隐藏移动版提示 */
+    @media (min-width: 769px) {
+      .usage-hint-mobile { display: none !important; }
+    }
+    /* 移动端：隐藏桌面版提示，调整样式 */
+    @media (max-width: 768px) {
+      .usage-hint-desktop { display: none !important; }
+      .usage-hint-mobile {
+        display: flex !important;
+        font-size: 11px;
+        gap: 8px;
+        margin-top: 20px;
+      }
+      .usage-hint-mobile span:nth-child(odd) { font-size: 11px; }
     }
     #hint {
       bottom: 40px;
@@ -377,12 +396,21 @@
   <div id="title" class="overlay">
     <h1>MEMORIES CORRIDOR</h1>
     <p>Refined · Cinematic · Immersive</p>
-    <div id="usage-hint">
+    <!-- 桌面端提示 -->
+    <div id="usage-hint" class="usage-hint-desktop">
       <span>悬停查看</span>
       <span>·</span>
       <span>滚动鼠标开启长廊</span>
       <span>·</span>
       <span>单击固定</span>
+    </div>
+    <!-- 移动端提示 -->
+    <div id="usage-hint" class="usage-hint-mobile">
+      <span>触摸建筑查看</span>
+      <span>·</span>
+      <span>上滑屏幕前进,下滑后退</span>
+      <span>·</span>
+      <span>点击放大全屏</span>
     </div>
   </div>
   <div id="hint" class="overlay">Scroll to explore</div>
