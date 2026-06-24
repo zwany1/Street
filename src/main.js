@@ -193,33 +193,63 @@ class App {
       }
     }, { passive: true });
 
-    // 点击建筑：锁定/解锁预览（用 raycast 命中结果）
+    // 点击建筑：固定当前预览位置（不重新计算位置，就地固定）
     window.addEventListener('pointerdown', (e) => {
-      this.lastPointer = { x: e.clientX, y: e.clientY };
+      // 点击的是按钮则不处理建筑点击
+      if (e.target.closest('#play-btn') || e.target.closest('#expand-btn')) return;
 
       this.raycaster.setFromCamera(this.mouseNDC, this.camera);
       const intersects = this.raycaster.intersectObjects(this.hitboxMeshes, false);
       const buildingId = intersects[0]?.object?.userData?.buildingId || null;
 
       if (!buildingId) {
+        // 点击空白区域：取消固定
         this.pinnedBuildingId = null;
         this.hideWorkPreview();
         return;
       }
 
-      if (this.pinnedBuildingId === buildingId) {
-        this.pinnedBuildingId = null;
-        if (!this.hoveredBuildingId) this.hideWorkPreview();
-        return;
-      }
-
-      this.pinnedBuildingId = buildingId;
-      const work = this.workByBuildingId.get(buildingId);
-      if (work) {
-        this.setActiveWork(work);
-        this.showWorkPreviewAt(this.lastPointer.x, this.lastPointer.y);
+      // 点击建筑：固定当前预览（不改变位置，只加 pinned 标记）
+      if (this.hoveredBuildingId === buildingId) {
+        // 当前 hover 的建筑，点击后原地固定
+        this.pinnedBuildingId = buildingId;
+        if (this.workPreviewEl) {
+          this.workPreviewEl.classList.add('pinned');
+        }
+      } else {
+        // 点击的不是当前 hover 建筑，先显示再固定
+        this.pinnedBuildingId = buildingId;
+        const work = this.workByBuildingId.get(buildingId);
+        if (work) {
+          this.setActiveWork(work);
+          this.showWorkPreviewAt(e.clientX, e.clientY, true);
+        }
       }
     });
+
+    // 放大按钮：打开全屏查看
+    const expandBtn = document.getElementById('expand-btn');
+    if (expandBtn) {
+      expandBtn.addEventListener('click', () => {
+        this.openFullscreen();
+      });
+    }
+
+    // 全屏查看器关闭按钮
+    const closeFullscreen = document.getElementById('close-fullscreen');
+    if (closeFullscreen) {
+      closeFullscreen.addEventListener('click', () => {
+        this.closeFullscreen();
+      });
+    }
+
+    // 全屏查看器：点击背景关闭
+    const fullscreenViewer = document.getElementById('fullscreen-viewer');
+    if (fullscreenViewer) {
+      fullscreenViewer.addEventListener('click', (e) => {
+        if (e.target === fullscreenViewer) this.closeFullscreen();
+      });
+    }
 
     // 响应式
     window.addEventListener('resize', () => {
@@ -357,7 +387,7 @@ class App {
     this.setWorkPreviewMedia({ type: 'image', src });
   }
 
-  showWorkPreviewAt(screenX, screenY) {
+  showWorkPreviewAt(screenX, screenY, pinned = false) {
     if (!this.workPreviewEl) return;
 
     const margin = 16;
@@ -377,14 +407,60 @@ class App {
     this.workPreviewEl.style.top = `${Math.round(y)}px`;
     this.workPreviewEl.classList.add('visible');
     this.workPreviewEl.setAttribute('aria-hidden', 'false');
+
+    // 固定时加上 pinned class，显示放大按钮
+    if (pinned) {
+      this.workPreviewEl.classList.add('pinned');
+    } else {
+      this.workPreviewEl.classList.remove('pinned');
+    }
   }
 
   hideWorkPreview() {
     if (!this.workPreviewEl) return;
-    this.workPreviewEl.classList.remove('visible');
+    this.workPreviewEl.classList.remove('visible', 'pinned');
     this.workPreviewEl.setAttribute('aria-hidden', 'true');
-    // 隐藏时暂停视频，节省资源
     if (this.workPreviewVidEl) this.workPreviewVidEl.pause();
+  }
+
+  // --- 全屏查看器 ---
+  openFullscreen() {
+    const viewer = document.getElementById('fullscreen-viewer');
+    const fsImg = document.getElementById('fullscreen-img');
+    const fsVid = document.getElementById('fullscreen-video');
+    if (!viewer || !fsImg || !fsVid) return;
+
+    const work = this.getActiveWork();
+    if (!work?.media) return;
+
+    const { type, src } = work.media;
+
+    if (type === 'video') {
+      fsImg.style.display = 'none';
+      fsVid.style.display = 'block';
+      fsVid.src = src;
+      fsVid.load();
+      fsVid.play().catch(() => {});
+    } else {
+      fsVid.pause();
+      fsVid.style.display = 'none';
+      fsImg.style.display = 'block';
+      fsImg.src = src;
+    }
+
+    viewer.classList.add('active');
+  }
+
+  closeFullscreen() {
+    const viewer = document.getElementById('fullscreen-viewer');
+    const fsVid = document.getElementById('fullscreen-video');
+    if (!viewer) return;
+
+    viewer.classList.remove('active');
+    if (fsVid) {
+      fsVid.pause();
+      fsVid.src = '';
+    }
   }
 
   // --- hover / raycast ---
@@ -392,40 +468,29 @@ class App {
     if (!this.camera || !this.hitboxMeshes?.length) return;
     if (Math.abs(this.mouseNDC.x) > 2 || Math.abs(this.mouseNDC.y) > 2) return;
 
+    // 已固定时不响应 hover（预览框位置不变）
+    if (this.pinnedBuildingId) return;
+
     // 节流：每 3 帧执行一次 raycast
     this._hoverFrame++;
     if (this._hoverFrame % this._hoverInterval !== 0) return;
 
     this.raycaster.setFromCamera(this.mouseNDC, this.camera);
-    // 直接对 hitbox 扁平数组做检测，避免递归遍历数千子 mesh
     const intersects = this.raycaster.intersectObjects(this.hitboxMeshes, false);
     const buildingId = intersects[0]?.object?.userData?.buildingId || null;
 
     if (!buildingId) {
       this.hoveredBuildingId = null;
-      if (!this.pinnedBuildingId) this.hideWorkPreview();
+      this.hideWorkPreview();
       return;
     }
 
     if (this.hoveredBuildingId !== buildingId) {
       this.hoveredBuildingId = buildingId;
-
-      // hover 显示：仅在未锁定时跟随 hover；已锁定则保持 pinned
-      if (!this.pinnedBuildingId) {
-        const work = this.workByBuildingId.get(buildingId);
-        if (work) {
-          this.setActiveWork(work);
-          this.showWorkPreviewAt(this.lastPointer?.x || 0, this.lastPointer?.y || 0);
-        }
-      }
-    }
-
-    // 已锁定：确保锁定的作品保持显示（即便 hover 到其他建筑）
-    if (this.pinnedBuildingId) {
-      const pinnedWork = this.workByBuildingId.get(this.pinnedBuildingId);
-      if (pinnedWork) {
-        this.setActiveWork(pinnedWork);
-        this.showWorkPreviewAt(this.lastPointer?.x || 0, this.lastPointer?.y || 0);
+      const work = this.workByBuildingId.get(buildingId);
+      if (work) {
+        this.setActiveWork(work);
+        this.showWorkPreviewAt(this.lastPointer?.x || 0, this.lastPointer?.y || 0, false);
       }
     }
   }
