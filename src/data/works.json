@@ -1,0 +1,160 @@
+{
+  "works": [
+    {
+      "id": "work-1",
+      "slug": "work-1",
+      "title": "Project 01",
+      "buildingId": "bldg-left-00",
+      "media": { "type": "image", "src": "/1.jpg" }
+    },
+    {
+      "id": "work-2",
+      "slug": "work-2",
+      "title": "Project 02",
+      "buildingId": "bldg-right-00",
+      "media": { "type": "image", "src": "/2.jpg" }
+    },
+    {
+      "id": "work-3",
+      "slug": "work-3",
+      "title": "Project 03",
+      "buildingId": "bldg-left-01",
+      "media": { "type": "video", "src": "/3.mp4" }
+    },
+    {
+      "id": "work-4",
+      "slug": "work-4",
+      "title": "Project 04",
+      "buildingId": "bldg-right-01",
+      "media": { "type": "image", "src": "/4.jpg" }
+    },
+    {
+      "id": "work-5",
+      "slug": "work-5",
+      "title": "Project 05",
+      "buildingId": "bldg-left-02",
+      "media": { "type": "image", "src": "/5.jpg" }
+    },
+    {
+      "id": "work-6",
+      "slug": "work-6",
+      "title": "Project 06",
+      "buildingId": "bldg-right-02",
+      "media": { "type": "video", "src": "/6.mp4" }
+    },
+    {
+      "id": "work-7",
+      "slug": "work-7",
+      "title": "Project 07",
+      "buildingId": "bldg-left-03",
+      "media": { "type": "image", "src": "/7.jpg" }
+    },
+    {
+      "id": "work-8",
+      "slug": "work-8",
+      "title": "Project 08",
+      "buildingId": "bldg-right-03",
+      "media": { "type": "image", "src": "/8.jpg" }
+    },
+    {
+      "id": "work-9",
+      "slug": "work-9",
+      "title": "Project 09",
+      "buildingId": "bldg-left-04",
+      "media": { "type": "image", "src": "/9.jpg" }
+    },
+    {
+      "id": "work-10",
+      "slug": "work-10",
+      "title": "Project 10",
+      "buildingId": "bldg-right-04",
+      "media": { "type": "image", "src": "/10.jpg" }
+    },
+    {
+      "id": "work-11",
+      "slug": "work-11",
+      "title": "Project 11",
+      "buildingId": "bldg-left-05",
+      "media": { "type": "image", "src": "/11.jpg" }
+    },
+    {
+      "id": "work-12",
+      "slug": "work-12",
+      "title": "Project 12",
+      "buildingId": "bldg-right-05",
+      "media": { "type": "video", "src": "/12.mp4" }
+    },
+    {
+      "id": "work-13",
+      "slug": "work-13",
+      "title": "Project 13",
+      "buildingId": "bldg-left-06",
+      "media": { "type": "image", "src": "/13.jpg" }
+    },
+    {
+      "id": "work-14",
+      "slug": "work-14",
+      "title": "Project 14",
+      "buildingId": "bldg-right-06",
+      "media": { "type": "image", "src": "/14.jpg" }
+    },
+    {
+      "id": "work-15",
+      "slug": "work-15",
+      "title": "Project 15",
+      "buildingId": "bldg-left-07",
+      "media": { "type": "image", "src": "/15.jpg" }
+    },
+    {
+      "id": "work-16",
+      "slug": "work-16",
+      "title": "Project 16",
+      "buildingId": "bldg-right-07",
+      "media": { "type": "video", "src": "/16.mp4" }
+    },
+    {
+      "id": "work-17",
+      "slug": "work-17",
+      "title": "Project 17",
+      "buildingId": "bldg-left-08",
+      "media": { "type": "image", "src": "/17.jpg" }
+    },
+    {
+      "id": "work-18",
+      "slug": "work-18",
+      "title": "Project 18",
+      "buildingId": "bldg-right-08",
+      "media": { "type": "video", "src": "/18.mp4" }
+    },
+    {
+      "id": "work-19",
+      "slug": "work-19",
+      "title": "Project 19",
+      "buildingId": "bldg-left-09",
+      "media": { "type": "video", "src": "/19.mp4" }
+    }
+  ],
+  "sections": [
+    { "id": "intro",   "start": 0.00, "end": 0.08, "label": "Intro",  "workId": null },
+    { "id": "work-1",  "start": 0.08, "end": 0.13, "label": "Work",   "workId": "work-1" },
+    { "id": "work-2",  "start": 0.13, "end": 0.18, "label": "Work",   "workId": "work-2" },
+    { "id": "work-3",  "start": 0.18, "end": 0.23, "label": "Work",   "workId": "work-3" },
+    { "id": "work-4",  "start": 0.23, "end": 0.28, "label": "Work",   "workId": "work-4" },
+    { "id": "work-5",  "start": 0.28, "end": 0.33, "label": "Work",   "workId": "work-5" },
+    { "id": "work-6",  "start": 0.33, "end": 0.38, "label": "Work",   "workId": "work-6" },
+    { "id": "work-7",  "start": 0.38, "end": 0.43, "label": "Work",   "workId": "work-7" },
+    { "id": "work-8",  "start": 0.43, "end": 0.48, "label": "Work",   "workId": "work-8" },
+    { "id": "work-9",  "start": 0.48, "end": 0.53, "label": "Work",   "workId": "work-9" },
+    { "id": "work-10", "start": 0.53, "end": 0.58, "label": "Work",   "workId": "work-10" },
+    { "id": "work-11", "start": 0.58, "end": 0.63, "label": "Work",   "workId": "work-11" },
+    { "id": "work-12", "start": 0.63, "end": 0.67, "label": "Work",   "workId": "work-12" },
+    { "id": "work-13", "start": 0.67, "end": 0.71, "label": "Work",   "workId": "work-13" },
+    { "id": "work-14", "start": 0.71, "end": 0.75, "label": "Work",   "workId": "work-14" },
+    { "id": "work-15", "start": 0.75, "end": 0.79, "label": "Work",   "workId": "work-15" },
+    { "id": "work-16", "start": 0.79, "end": 0.83, "label": "Work",   "workId": "work-16" },
+    { "id": "work-17", "start": 0.83, "end": 0.87, "label": "Work",   "workId": "work-17" },
+    { "id": "work-18", "start": 0.87, "end": 0.91, "label": "Work",   "workId": "work-18" },
+    { "id": "work-19", "start": 0.91, "end": 0.95, "label": "Work",   "workId": "work-19" },
+    { "id": "outro",   "start": 0.95, "end": 1.00, "label": "Outro",  "workId": null }
+  ]
+}

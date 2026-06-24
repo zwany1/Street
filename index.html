@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Neon Horizon — Immersive Cyberpunk Experience</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body {
+      width: 100%;
+      min-height: 100%;
+      overflow-x: hidden;
+      /* 现代玻璃城市夜空：冷灰蓝渐变（替代纯黑） */
+      background: radial-gradient(1200px 700px at 50% 10%, rgba(170, 205, 255, 0.12), rgba(0, 0, 0, 0) 60%),
+                  linear-gradient(180deg, #070b12 0%, #03040a 55%, #000 100%);
+      color: #eaf3ff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      cursor: none;
+    }
+    #scroll-spacer {
+      height: 500vh;
+    }
+    #app {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+    }
+    #scroll-spacer {
+      position: relative;
+      z-index: -1;
+    }
+    #custom-cursor {
+      position: fixed;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: rgba(169, 112, 255, 0.6);
+      pointer-events: none;
+      z-index: 9999;
+      /* 用 transform 定位，zero-layout-cost；初始移到屏幕外 */
+      top: 0;
+      left: 0;
+      transform: translate(-100px, -100px);
+      will-change: transform;
+      transition: opacity 0.15s ease-out;
+      box-shadow: 0 0 20px rgba(169, 112, 255, 0.8);
+    }
+    .overlay {
+      position: fixed;
+      z-index: 10;
+      pointer-events: none;
+    }
+
+    /* Portfolio UI layer (image preview) */
+    #portfolio-ui {
+      position: fixed;
+      inset: 0;
+      z-index: 20;
+      pointer-events: none;
+    }
+
+    /* 图片预览：靠近建筑附近（JS 设置 left/top），自动避边 */
+    #work-preview {
+      position: absolute;
+      width: min(380px, calc(100vw - 40px));
+      aspect-ratio: 16 / 10;
+
+      border: 0;
+      background: transparent;
+      box-shadow: none;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+      overflow: hidden;
+
+      opacity: 0;
+      transform: translateY(8px);
+      transition: opacity 0.22s ease-out, transform 0.22s ease-out;
+      pointer-events: none;
+
+      /*
+        椭圆半径超过容器尺寸（105% / 100%），实心区覆盖整个内容区域，
+        消融只发生在四个角落，顶部/底部/左右主体完整保留。
+      */
+      -webkit-mask-image: radial-gradient(ellipse 105% 100% at 50% 50%,
+        #000 72%, rgba(0,0,0,0.45) 85%, transparent 100%);
+      mask-image: radial-gradient(ellipse 105% 100% at 50% 50%,
+        #000 72%, rgba(0,0,0,0.45) 85%, transparent 100%);
+    }
+    #work-preview.visible {
+      opacity: 0.82;
+      transform: translateY(0);
+    }
+    #work-preview img,
+    #work-preview video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      filter: saturate(0.9) contrast(1.02) brightness(0.92);
+    }
+    #work-preview video {
+      display: none;
+    }
+
+    /* 视频播放按钮：居中悬浮，不影响其他区域交互 */
+    #play-btn {
+      display: none;
+      position: absolute;
+      inset: 0;
+      margin: auto;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(159, 220, 255, 0.55);
+      background: rgba(7, 11, 18, 0.55);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      color: #9fdcff;
+      cursor: pointer;
+      pointer-events: auto;   /* 父级 pointer-events:none，这里单独打开 */
+      z-index: 2;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, transform 0.12s;
+    }
+    #play-btn:hover {
+      background: rgba(159, 220, 255, 0.18);
+      transform: scale(1.1);
+    }
+    #play-btn svg {
+      width: 18px;
+      height: 18px;
+      pointer-events: none;
+    }
+    /* video 激活时按钮显示为 flex */
+    #work-preview.has-video #play-btn {
+      display: flex;
+    }
+    #title {
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      letter-spacing: 0.4em;
+      transition: opacity 0.8s;
+    }
+    #title h1 {
+      font-size: clamp(40px, 8vw, 96px);
+      font-weight: 100;
+      /* 现代玻璃城市：冷白 → 冰蓝 → 钢蓝 */
+      background: linear-gradient(135deg, #eaf3ff 0%, #9fdcff 55%, #4b6a9a 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 20px;
+      text-shadow: 0 0 26px rgba(159, 220, 255, 0.22);
+    }
+    #title p {
+      font-size: 11px;
+      opacity: 0.45;
+      letter-spacing: 0.8em;
+      color: #8899cc;
+      text-transform: uppercase;
+    }
+    #hint {
+      bottom: 40px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px;
+      letter-spacing: 0.6em;
+      opacity: 0.3;
+      animation: pulse 3s infinite;
+      color: #667799;
+      text-transform: uppercase;
+    }
+    #progress {
+      bottom: 0;
+      left: 0;
+      height: 2px;
+      width: 0%;
+      background: linear-gradient(90deg, rgba(234, 243, 255, 0.9) 0%, rgba(159, 220, 255, 0.95) 60%, rgba(75, 106, 154, 0.9) 100%);
+      box-shadow: 0 0 18px rgba(159, 220, 255, 0.22);
+      transition: width 0.3s ease-out;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.2; }
+      50% { opacity: 0.5; }
+    }
+    #loader {
+      position: fixed;
+      inset: 0;
+      z-index: 9999;
+      background: #000;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      font-size: 10px;
+      letter-spacing: 0.6em;
+      transition: opacity 1.2s;
+      pointer-events: none;
+      text-transform: uppercase;
+      color: #667799;
+    }
+    #loader-bar {
+      width: 180px;
+      height: 1px;
+      background: #0a0d1a;
+      margin-top: 24px;
+      overflow: hidden;
+    }
+    #loader-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #a970ff, #00f5ff);
+      transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="custom-cursor"></div>
+
+  <div id="loader">
+    <div>Initializing</div>
+    <div id="loader-bar"><div id="loader-fill"></div></div>
+  </div>
+
+  <div id="title" class="overlay">
+    <h1>MEMORIES CORRIDOR</h1>
+    <p>Refined · Cinematic · Immersive</p>
+  </div>
+  <div id="hint" class="overlay">Scroll to explore</div>
+  <div id="progress" class="overlay"></div>
+
+  <div id="portfolio-ui" aria-live="polite">
+    <div id="work-preview" aria-hidden="true">
+      <img id="work-preview-img" src="" alt="Work preview" />
+      <video id="work-preview-video" muted loop playsinline preload="none"></video>
+      <button id="play-btn" aria-label="播放 / 暂停">
+        <!-- play icon，JS 切换为 pause icon -->
+        <svg id="play-icon" viewBox="0 0 24 24" fill="currentColor">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+        <svg id="pause-icon" viewBox="0 0 24 24" fill="currentColor" style="display:none">
+          <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <div id="scroll-spacer"></div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
