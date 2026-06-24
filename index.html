@@ -98,6 +98,13 @@
         mask-composite: intersect;
       }
     }
+    /* 移动端：预览框更大，占据更多屏幕空间 */
+    @media (max-width: 768px) {
+      #work-preview {
+        width: min(90vw, 500px);
+        aspect-ratio: 16 / 10;
+      }
+    }
     #work-preview.visible {
       opacity: 0.52;
       transform: translateY(0);
@@ -129,11 +136,16 @@
       -webkit-backdrop-filter: blur(4px);
       color: #9fdcff;
       cursor: pointer;
-      pointer-events: auto;   /* 父级 pointer-events:none，这里单独打开 */
+      pointer-events: auto;
       z-index: 2;
       align-items: center;
       justify-content: center;
       transition: background 0.15s, transform 0.12s;
+    }
+    /* 移动端：增大按钮触摸热区 */
+    @media (max-width: 768px) {
+      #play-btn { width: 56px; height: 56px; }
+      #play-btn svg { width: 20px; height: 20px; }
     }
     #play-btn:hover {
       background: rgba(159, 220, 255, 0.18);
@@ -169,6 +181,11 @@
       align-items: center;
       justify-content: center;
       transition: background 0.15s, transform 0.12s;
+    }
+    /* 移动端：增大按钮触摸热区 */
+    @media (max-width: 768px) {
+      #expand-btn { width: 40px; height: 40px; top: 12px; right: 12px; }
+      #expand-btn svg { width: 18px; height: 18px; }
     }
     #expand-btn:hover {
       background: rgba(159, 220, 255, 0.22);
@@ -262,6 +279,13 @@
       background-clip: text;
       margin-bottom: 20px;
       text-shadow: 0 0 26px rgba(159, 220, 255, 0.22);
+    }
+    @media (max-width: 768px) {
+      #title h1 { font-size: clamp(28px, 10vw, 56px); letter-spacing: 0.2em; }
+      #title p { font-size: 9px; letter-spacing: 0.5em; }
+      #usage-hint { font-size: 11px; gap: 8px; margin-top: 20px; }
+      #usage-hint span:nth-child(odd) { font-size: 11px; }
+      #hint { font-size: 8px; bottom: 24px; }
     }
     #title p {
       font-size: 11px;

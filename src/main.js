@@ -19,6 +19,10 @@ class App {
     this.loaderShown = true;
     this.scrollProgress = 0;
 
+    // 移动端检测
+    this.isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+      || window.innerWidth < 768;
+
     // data
     this.works = worksData.works || [];
     this.sections = worksData.sections || [];
@@ -27,15 +31,15 @@ class App {
 
     // interaction
     this.raycaster = new THREE.Raycaster();
-    this.raycaster.far = 300;               // 限制检测距离，远建筑不参与
+    this.raycaster.far = this.isMobile ? 200 : 300;  // 移动端减少检测距离
     this.mouseNDC = new THREE.Vector2(999, 999);
     this.hoveredBuildingId = null;
     this.pinnedBuildingId = null;
     this.activeWorkId = null;
-    this._hoverFrame = 0;                   // raycast 帧计数器
-    this._hoverInterval = 3;                // 每 3 帧做一次 raycast
+    this._hoverFrame = 0;
+    this._hoverInterval = this.isMobile ? 5 : 3;     // 移动端降低 raycast 频率
 
-    // screen-space pointer (for preview placement)
+    // screen-space pointer
     this.lastPointer = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
 
     this.init();
@@ -56,15 +60,17 @@ class App {
 
     this.renderer = new THREE.WebGLRenderer({
       canvas,
-      antialias: CONFIG.RENDERER.antialias,
+      antialias: this.isMobile ? false : CONFIG.RENDERER.antialias,  // 移动端关闭抗锯齿
       powerPreference: 'high-performance'
     });
 
-    this.renderer.setPixelRatio(CONFIG.RENDERER.pixelRatio);
+    // 移动端限制像素比为 1，避免高 DPI 屏幕性能问题
+    const pixelRatio = this.isMobile ? 1 : Math.min(window.devicePixelRatio, CONFIG.RENDERER.pixelRatio);
+    this.renderer.setPixelRatio(pixelRatio);
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.4;
-    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.enabled = !this.isMobile;  // 移动端关闭阴影
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   }
 
@@ -162,6 +168,34 @@ class App {
   } // setupUI end
 
   setupEvents() {
+    // 移动端：隐藏自定义光标
+    if (this.isMobile) {
+      document.body.style.cursor = 'auto';
+      const cursor = document.getElementById('custom-cursor');
+      if (cursor) cursor.style.display = 'none';
+    }
+
+    // 触摸事件（移动端）
+    if (this.isMobile) {
+      window.addEventListener('touchstart', (e) => {
+        if (e.touches.length > 0) {
+          const touch = e.touches[0];
+          this.mouseNDC.x = (touch.clientX / window.innerWidth) * 2 - 1;
+          this.mouseNDC.y = -(touch.clientY / window.innerHeight) * 2 + 1;
+          this.lastPointer = { x: touch.clientX, y: touch.clientY };
+        }
+      }, { passive: true });
+
+      window.addEventListener('touchmove', (e) => {
+        if (e.touches.length > 0) {
+          const touch = e.touches[0];
+          this.mouseNDC.x = (touch.clientX / window.innerWidth) * 2 - 1;
+          this.mouseNDC.y = -(touch.clientY / window.innerHeight) * 2 + 1;
+          this.lastPointer = { x: touch.clientX, y: touch.clientY };
+        }
+      }, { passive: true });
+    }
+
     // 鼠标 → NDC（raycast） + 记录屏幕坐标（用于卡片跟随建筑投影点）
     window.addEventListener('mousemove', (e) => {
       this.mouseNDC.x = (e.clientX / window.innerWidth) * 2 - 1;
@@ -193,10 +227,14 @@ class App {
       }
     }, { passive: true });
 
-    // 点击建筑：固定当前预览位置（不重新计算位置，就地固定）
-    window.addEventListener('pointerdown', (e) => {
+    // 点击建筑：固定当前预览位置（移动端触摸时直接触发）
+    const handlePointerDown = (e) => {
       // 点击的是按钮则不处理建筑点击
       if (e.target.closest('#play-btn') || e.target.closest('#expand-btn')) return;
+
+      // 获取坐标（兼容触摸和鼠标）
+      const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+      const clientY = e.touches ? e.touches[0].clientY : e.clientY;
 
       this.raycaster.setFromCamera(this.mouseNDC, this.camera);
       const intersects = this.raycaster.intersectObjects(this.hitboxMeshes, false);
@@ -209,7 +247,18 @@ class App {
         return;
       }
 
-      // 点击建筑：固定当前预览（不改变位置，只加 pinned 标记）
+      // 移动端：触摸建筑直接显示并固定
+      if (this.isMobile) {
+        this.pinnedBuildingId = buildingId;
+        const work = this.workByBuildingId.get(buildingId);
+        if (work) {
+          this.setActiveWork(work);
+          this.showWorkPreviewAt(clientX, clientY, true);
+        }
+        return;
+      }
+
+      // 桌面端：点击建筑固定当前预览（不改变位置，只加 pinned 标记）
       if (this.hoveredBuildingId === buildingId) {
         // 当前 hover 的建筑，点击后原地固定
         this.pinnedBuildingId = buildingId;
@@ -222,10 +271,15 @@ class App {
         const work = this.workByBuildingId.get(buildingId);
         if (work) {
           this.setActiveWork(work);
-          this.showWorkPreviewAt(e.clientX, e.clientY, true);
+          this.showWorkPreviewAt(clientX, clientY, true);
         }
       }
-    });
+    };
+
+    window.addEventListener('pointerdown', handlePointerDown);
+    if (this.isMobile) {
+      window.addEventListener('touchstart', handlePointerDown);
+    }
 
     // 放大按钮：打开全屏查看
     const expandBtn = document.getElementById('expand-btn');
