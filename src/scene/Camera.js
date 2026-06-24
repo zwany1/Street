@@ -12,13 +12,14 @@ export class CameraController {
       initialPosition.z
     );
 
-    // 相机路径
+    // 相机路径（起点前移到 z=50，确保能看到 bldg-*-00 建筑）
     this.path = new THREE.CatmullRomCurve3([
-      new THREE.Vector3(0, 4, 15),
-      new THREE.Vector3(-2, 4, -40),
-      new THREE.Vector3(3, 4.5, -120),
-      new THREE.Vector3(-1.5, 4.2, -220),
-      new THREE.Vector3(2, 5, -350),
+      new THREE.Vector3(0, 4, 50),
+      new THREE.Vector3(-2, 4, 10),
+      new THREE.Vector3(2, 4, -30),
+      new THREE.Vector3(-1.5, 4.2, -120),
+      new THREE.Vector3(3, 4.5, -220),
+      new THREE.Vector3(-1, 5, -350),
       new THREE.Vector3(0, 6, -500),
       new THREE.Vector3(0, 7, -650),
     ]);
