@@ -1,6 +1,26 @@
-# Neon Horizon
+# Neon Horizon - 记忆走廊
 
-现代化的赛博朋克 WebGL 体验项目，采用模块化架构构建。
+现代玻璃城市风格的 3D 作品展示项目，采用 Three.js + WebGL 构建，支持桌面端和移动端。
+
+## ✨ 核心特性
+
+### 🎨 交互展示
+- **智能预览系统** - 悬停建筑查看作品，点击固定预览，放大按钮全屏查看
+- **19 个作品位** - 支持图片和视频，自动映射到左右两侧建筑
+- **流畅过渡** - 预览框跟随鼠标，固定后保持位置不变
+- **视频控制** - 内置播放/暂停按钮，全屏模式支持原生控制条
+
+### 🏙️ 场景渲染
+- **程序化建筑生成** - 现代玻璃幕墙建筑，共享材质减少 draw call
+- **相机路径动画** - 滚动驱动，8 个关键点 CatmullRom 曲线插值
+- **优化渲染管线** - 取消 transmission，关闭点光源阴影，降低粒子数量
+- **Raycast 优化** - Hitbox mesh + 节流（每 3 帧），避免递归遍历
+
+### 📱 移动端适配
+- **自动降级** - 检测移动设备，关闭抗锯齿/阴影，像素比限制为 1
+- **触摸支持** - 触摸建筑直接固定预览，无需 hover
+- **响应式 UI** - 预览框、按钮、字号自适应屏幕尺寸
+- **性能优化** - Raycast 频率降低到每 5 帧，检测距离从 300 降到 200
 
 ## 🚀 快速开始
 
@@ -22,109 +42,132 @@ npm run preview
 
 ```
 neon-horizon/
-├── index.html              # 主 HTML 入口
-├── package.json
-├── vite.config.js          # Vite 配置
+├── index.html              # 主入口 + 内联样式
 ├── src/
-│   ├── main.js             # 应用入口
-│   ├── config.js           # 全局配置
-│   ├── scene/              # 场景模块
-│   │   ├── Scene.js        # 场景管理器
-│   │   ├── Camera.js       # 相机控制器
-│   │   ├── Buildings.js    # 建筑生成器
+│   ├── main.js             # 应用入口，交互逻辑
+│   ├── config.js           # 场景配置参数
+│   ├── scene/
+│   │   ├── Scene.js        # 场景、灯光、地面
+│   │   ├── Camera.js       # 相机路径控制器
+│   │   ├── Buildings.js    # 程序化建筑生成
 │   │   ├── HoloBillboard.js # 全息广告牌
 │   │   ├── NeonSigns.js    # 霓虹招牌
 │   │   └── PointLights.js  # 点光源系统
-│   ├── effects/            # 视觉效果
-│   │   ├── Particles.js    # 粒子系统
-│   │   ├── VolumetricLight.js # 体积光
-│   │   └── PostFX.js       # 后处理链
-│   ├── materials/          # 自定义材质（预留）
-│   ├── utils/              # 工具模块
+│   ├── effects/
+│   │   ├── Particles.js    # GPU 粒子系统
+│   │   ├── VolumetricLight.js # 体积光柱
+│   │   └── PostFX.js       # 后处理管线（Bloom、色差、晕影）
+│   ├── utils/
 │   │   ├── AssetLoader.js  # 资源加载器
 │   │   └── AudioManager.js # 音频管理器
-│   └── shaders/            # 自定义着色器（预留）
-├── assets/                 # 静态资源
-│   ├── models/             # 3D 模型
-│   ├── textures/           # 贴图
-│   └── audio/              # 音频文件
-└── public/                 # 公共资源
+│   └── data/
+│       └── works.json      # 作品数据配置
+├── public/                 # 媒体资源
+│   ├── 1.jpg ~ 19.jpg/mp4  # 作品图片/视频
+└── dist/                   # 构建输出
 ```
 
-## ✨ 特性
+## 🎯 使用说明
 
-- **模块化架构** - 清晰的代码组织，易于维护和扩展
-- **现代构建工具** - 基于 Vite，热更新开发体验
-- **后处理效果** - Bloom、色调分离、色差、胶片颗粒、晕影
-- **交互系统** - 鼠标视差、滚动动画
-- **性能优化** - 自适应像素比、阴影优化
-- **资源管理** - 支持 GLTF 模型、纹理、音频加载
+### 桌面端
+1. **悬停建筑** - 鼠标移到建筑上，预览框跟随鼠标显示作品
+2. **点击固定** - 点击建筑，预览框在当前位置固定
+3. **放大查看** - 固定后点击右上角放大按钮，全屏查看
+4. **点击空白** - 取消固定，恢复 hover 跟随
 
-## 🎨 核心模块说明
+### 移动端
+1. **触摸建筑** - 触摸建筑直接显示并固定预览
+2. **放大查看** - 触摸右上角放大按钮，全屏查看
+3. **触摸空白** - 取消固定
 
-### Scene 场景模块
-- `Scene.js` - 场景初始化、灯光、地面
-- `Camera.js` - 相机路径、鼠标视差控制
-- `Buildings.js` - 程序化建筑生成
-- `HoloBillboard.js` - 中心焦点全息广告牌
-- `NeonSigns.js` - 霓虹招牌系统
-- `PointLights.js` - 动态点光源
+## 📊 作品配置
 
-### Effects 效果模块
-- `Particles.js` - GPU 优化粒子系统
-- `VolumetricLight.js` - 体积光柱
-- `PostFX.js` - 完整后处理管线
+编辑 `src/data/works.json` 添加/修改作品：
 
-### Utils 工具模块
-- `AssetLoader.js` - 异步资源加载
-- `AudioManager.js` - 空间音频管理
+```json
+{
+  "works": [
+    {
+      "id": "work-1",
+      "slug": "work-1",
+      "title": "Project 01",
+      "buildingId": "bldg-left-00",
+      "media": { "type": "image", "src": "/1.jpg" }
+    },
+    {
+      "id": "work-2",
+      "slug": "work-2",
+      "title": "Project 02",
+      "buildingId": "bldg-right-00",
+      "media": { "type": "video", "src": "/2.mp4" }
+    }
+  ]
+}
+```
 
-## 🔧 配置
+**建筑 ID 规则：**
+- `bldg-left-00` ~ `bldg-left-09`：左侧建筑（10 栋）
+- `bldg-right-00` ~ `bldg-right-09`：右侧建筑（10 栋）
 
-编辑 `src/config.js` 调整全局参数：
+## ⚙️ 性能配置
+
+编辑 `src/config.js` 调整渲染参数：
 
 ```javascript
 export const CONFIG = {
-  PALETTE: { purple, pink, cyan },  // 色板
-  SCENE: { fogDensity, buildingSpacing, ... },
-  CAMERA: { fov, near, far, ... },
-  PARTICLES: { count, size, opacity },
-  RENDERER: { pixelRatio, antialias, ... }
+  RENDERER: {
+    pixelRatio: Math.min(window.devicePixelRatio, 2),  // 最大像素比
+    antialias: true,  // 抗锯齿（移动端自动关闭）
+  },
+  SCENE: {
+    buildingSpacing: 42,     // 建筑间距
+    buildingDensity: 0.68,   // 建筑密度
+    heightBase: 18,          // 基础高度
+    heightRange: 28,         // 高度浮动范围
+  },
+  PARTICLES: {
+    count: 420,              // 粒子数量（移动端建议减半）
+  },
 };
 ```
 
-## 📦 扩展建议
+## 🔧 性能优化细节
 
-### 添加 3D 模型
-1. 将 `.glb` 文件放入 `assets/models/`
-2. 在 `AssetLoader.js` 中集成 GLTFLoader
-3. 在场景中实例化加载的模型
+### 渲染优化
+- **材质共享** - 所有建筑共享 4 个材质实例
+- **几何体复用** - 幕墙、横梁、边缘灯带共享几何体
+- **取消 transmission** - 玻璃材质改用 MeshStandardMaterial + emissive
+- **外壳简化** - MeshBasicMaterial，零光照成本
+- **阴影控制** - 只有主塔和退台投影，细节件跳过
 
-### 添加自定义着色器
-1. 在 `src/shaders/` 创建 `.vert` / `.frag` 文件
-2. 使用 `vite-plugin-glsl` 自动导入
-3. 在 `materials/` 创建自定义材质类
+### 交互优化
+- **Hitbox mesh** - 每栋建筑一个不可见碰撞盒，替代递归遍历
+- **Raycast 节流** - 每 3 帧执行一次（移动端 5 帧）
+- **检测距离限制** - 300 单位（移动端 200）
+- **光标优化** - 用 transform 定位，避免布局重排
 
-### 添加音频
-1. 将音频文件放入 `assets/audio/`
-2. 使用 `AudioManager` 加载和播放
-3. 支持空间音效和动态混音
-
-## 🎯 下一步优化
-
-- [ ] 添加真实 3D 模型资产
-- [ ] 实现自定义全息着色器
-- [ ] 集成环境音效
-- [ ] 添加交互热点
-- [ ] 性能分析和 LOD 优化
-- [ ] 移动端适配
+### 移动端降级
+- 像素比限制为 1
+- 关闭抗锯齿和阴影
+- Raycast 频率降低 40%
+- 粒子数量建议减半
 
 ## 📝 技术栈
 
-- **Three.js** ^0.160.0
-- **Vite** ^5.0.0
-- **vite-plugin-glsl** ^1.2.0
+- **Three.js** ^0.160.0 - WebGL 渲染引擎
+- **Vite** ^5.0.0 - 构建工具
+- **原生 JavaScript** - 无框架依赖
+
+## 🎨 视觉风格
+
+- **色调** - 冷灰蓝 + 冰蓝 + 钢蓝
+- **材质** - 玻璃幕墙 + 金属结构
+- **氛围** - 现代玻璃城市夜景，宁静、克制、精致
 
 ## 📄 许可
 
-MIT
+MIT License
+
+---
+
+**提示：** 首次加载时建筑按随机概率生成，每次刷新布局略有不同。建议用 `buildingDensity: 1` 保证所有作品位都有对应建筑。
