@@ -73,7 +73,7 @@
       overflow: hidden;
 
       opacity: 0;
-      transform: translateY(8px);
+      transform: translateY(10px) scale(0.98);
       transition: opacity 0.22s ease-out, transform 0.22s ease-out;
       pointer-events: none;
 
@@ -107,7 +107,18 @@
     }
     #work-preview.visible {
       opacity: 0.52;
-      transform: translateY(0);
+      transform: translateY(0) scale(1);
+    }
+    /* 固定预览时：边缘发光提示 */
+    #work-preview.pinned::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border: 1px solid rgba(159, 220, 255, 0.22);
+      pointer-events: none;
+    }
+    #work-preview {
+      transform: translateY(10px) scale(0.98);
     }
     #work-preview img,
     #work-preview video {
@@ -116,6 +127,13 @@
       object-fit: contain;
       display: block;
       filter: saturate(0.9) contrast(1.02) brightness(0.92);
+    }
+    #work-preview img {
+      opacity: 0;
+      transition: opacity 0.18s ease-out;
+    }
+    #work-preview.visible img {
+      opacity: 1;
     }
     #work-preview video {
       display: none;
@@ -166,6 +184,32 @@
       display: none;
       position: absolute;
       top: 8px;
+      right: 44px;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 1.5px solid rgba(159, 220, 255, 0.45);
+      background: rgba(7, 11, 18, 0.65);
+      backdrop-filter: blur(4px);
+      -webkit-backdrop-filter: blur(4px);
+      color: #9fdcff;
+      cursor: pointer;
+      pointer-events: auto;
+      z-index: 3;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, transform 0.12s;
+    }
+    /* 移动端：增大按钮触摸热区 */
+    @media (max-width: 768px) {
+      #expand-btn { width: 40px; height: 40px; top: 12px; right: 52px; }
+      #expand-btn svg { width: 18px; height: 18px; }
+    }
+    /* 分享按钮：固定预览后右上角显示 */
+    #share-btn {
+      display: none;
+      position: absolute;
+      top: 8px;
       right: 8px;
       width: 32px;
       height: 32px;
@@ -184,20 +228,21 @@
     }
     /* 移动端：增大按钮触摸热区 */
     @media (max-width: 768px) {
-      #expand-btn { width: 40px; height: 40px; top: 12px; right: 12px; }
-      #expand-btn svg { width: 18px; height: 18px; }
+      #share-btn { width: 40px; height: 40px; top: 12px; right: 12px; }
+      #share-btn svg { width: 18px; height: 18px; }
     }
-    #expand-btn:hover {
+    #share-btn:hover {
       background: rgba(159, 220, 255, 0.22);
       transform: scale(1.12);
     }
-    #expand-btn svg {
+    #share-btn svg {
       width: 16px;
       height: 16px;
       pointer-events: none;
     }
-    /* 预览固定时显示放大按钮 */
-    #work-preview.pinned #expand-btn {
+    /* 预览固定时显示放大和分享按钮 */
+    #work-preview.pinned #expand-btn,
+    #work-preview.pinned #share-btn {
       display: flex;
     }
 
@@ -349,6 +394,31 @@
       box-shadow: 0 0 18px rgba(159, 220, 255, 0.22);
       transition: width 0.3s ease-out;
     }
+
+    /* 分享成功提示 */
+    #share-toast {
+      position: fixed;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%) translateY(12px);
+      background: rgba(7, 11, 18, 0.88);
+      border: 1px solid rgba(159, 220, 255, 0.35);
+      border-radius: 6px;
+      padding: 8px 20px;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      color: #9fdcff;
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+      z-index: 9999;
+    }
+    #share-toast.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
     @keyframes pulse {
       0%, 100% { opacity: 0.2; }
       50% { opacity: 0.5; }
@@ -368,6 +438,19 @@
       pointer-events: none;
       text-transform: uppercase;
       color: #667799;
+    }
+    #loader-percent {
+      font-size: 28px;
+      font-weight: 100;
+      letter-spacing: 0.15em;
+      color: #9fdcff;
+      margin-top: 16px;
+      transition: opacity 0.2s;
+    }
+    #loader-error {
+      max-width: 320px;
+      text-align: center;
+      line-height: 1.5;
     }
     #loader-bar {
       width: 180px;
@@ -389,8 +472,10 @@
   <div id="custom-cursor"></div>
 
   <div id="loader">
-    <div>Initializing</div>
+    <div id="loader-text">Initializing</div>
+    <div id="loader-percent">0%</div>
     <div id="loader-bar"><div id="loader-fill"></div></div>
+    <div id="loader-error" style="display:none;color:#ff6b6b;font-size:9px;margin-top:16px;letter-spacing:0.1em;"></div>
   </div>
 
   <div id="title" class="overlay">
@@ -398,19 +483,25 @@
     <p>Refined · Cinematic · Immersive</p>
     <!-- 桌面端提示 -->
     <div id="usage-hint" class="usage-hint-desktop">
-      <span>悬停查看</span>
+      <span>悬停预览</span>
       <span>·</span>
-      <span>滚动鼠标开启长廊</span>
+      <span>滚动进入长廊</span>
       <span>·</span>
-      <span>单击固定</span>
+      <span>点击固定</span>
+      <span>·</span>
+      <span>方向键切换</span>
+      <span>·</span>
+      <span>ESC取消固定</span>
+      <span>·</span>
+      <span>分享复制链接</span>
     </div>
     <!-- 移动端提示 -->
     <div id="usage-hint" class="usage-hint-mobile">
       <span>触摸建筑查看</span>
       <span>·</span>
-      <span>上滑屏幕前进,下滑后退</span>
+      <span>上滑前进下滑后退</span>
       <span>·</span>
-      <span>点击放大全屏</span>
+      <span>点击分享复制链接</span>
     </div>
   </div>
   <div id="hint" class="overlay">Scroll to explore</div>
@@ -434,6 +525,13 @@
           <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>
         </svg>
       </button>
+      <button id="share-btn" aria-label="分享作品">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M4 12v7a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-7"/>
+          <polyline points="16 6 12 2 8 6"/>
+          <line x1="12" y1="2" x2="12" y2="15"/>
+        </svg>
+      </button>
     </div>
   </div>
 
@@ -451,6 +549,9 @@
   </div>
 
   <div id="scroll-spacer"></div>
+
+  <!-- 分享成功提示 -->
+  <div id="share-toast">链接已复制到剪贴板</div>
 
   <script type="module" src="/src/main.js"></script>
 </body>

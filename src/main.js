@@ -28,6 +28,7 @@ class App {
     this.sections = worksData.sections || [];
     this.workByBuildingId = new Map();
     this.workBySlug = new Map();
+    this.workById = new Map();
 
     // interaction
     this.raycaster = new THREE.Raycaster();
@@ -38,6 +39,9 @@ class App {
     this.activeWorkId = null;
     this._hoverFrame = 0;
     this._hoverInterval = this.isMobile ? 5 : 3;     // 移动端降低 raycast 频率
+
+    // 路由飞行控制
+    this.scrollHijacked = false;
 
     // screen-space pointer
     this.lastPointer = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
@@ -123,7 +127,13 @@ class App {
     for (const w of this.works) {
       if (w?.buildingId) this.workByBuildingId.set(w.buildingId, w);
       if (w?.slug) this.workBySlug.set(w.slug, w);
+      if (w?.id) this.workById.set(w.id, w);
     }
+
+    // URL 路由：监听 hash 变化
+    window.addEventListener('hashchange', () => this.onHashChange());
+    // 初始加载时检查 hash
+    this.onHashChange();
 
     // 自定义光标：用 transform 而非 left/top，避免每次 mousemove 触发 layout 重排
     const cursor = document.getElementById('custom-cursor');
@@ -205,6 +215,12 @@ class App {
 
     // 滚动（段落时间轴）
     window.addEventListener('scroll', () => {
+      // 路由飞行期间：跳过 scroll 对 progress 的干扰
+      if (this.scrollHijacked && this.cameraController.isFlying()) {
+        return;
+      }
+      this.scrollHijacked = false;
+
       const maxScroll = document.body.scrollHeight - window.innerHeight;
       this.scrollProgress = maxScroll > 0 ? (window.scrollY / maxScroll) : 0;
       this.scrollProgress = THREE.MathUtils.clamp(this.scrollProgress, 0, 1);
@@ -230,7 +246,7 @@ class App {
     // 点击建筑：固定当前预览位置（移动端触摸时直接触发）
     const handlePointerDown = (e) => {
       // 点击的是按钮则不处理建筑点击
-      if (e.target.closest('#play-btn') || e.target.closest('#expand-btn')) return;
+      if (e.target.closest('#play-btn') || e.target.closest('#expand-btn') || e.target.closest('#share-btn')) return;
 
       // 获取坐标（兼容触摸和鼠标）
       const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -284,8 +300,18 @@ class App {
     // 放大按钮：打开全屏查看
     const expandBtn = document.getElementById('expand-btn');
     if (expandBtn) {
-      expandBtn.addEventListener('click', () => {
+      expandBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
         this.openFullscreen();
+      });
+    }
+
+    // 分享按钮：复制当前作品的完整链接到剪贴板
+    const shareBtn = document.getElementById('share-btn');
+    if (shareBtn) {
+      shareBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.shareCurrentWork();
       });
     }
 
@@ -313,6 +339,75 @@ class App {
       this.postProcessing.onResize(window.innerWidth, window.innerHeight);
     });
 
+    // 键盘导航（桌面端）
+    window.addEventListener('keydown', (e) => {
+      if (this.isMobile) return;
+
+      // 全屏打开时只处理 ESC
+      const viewer = document.getElementById('fullscreen-viewer');
+      if (viewer?.classList.contains('active')) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          this.closeFullscreen();
+        }
+        return;
+      }
+
+      // 输入框内不抢键
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+      const works = this.works || [];
+      if (!works.length) return;
+
+      const currentIndex = Math.max(0, works.findIndex(w => w.id === this.activeWorkId));
+
+      const showIndex = (idx) => {
+        const w = works[(idx + works.length) % works.length];
+        if (!w) return;
+        this.pinnedBuildingId = w.buildingId || null;
+        this.setActiveWork(w);
+        this.showWorkPreviewAt(this.lastPointer?.x || window.innerWidth / 2, this.lastPointer?.y || window.innerHeight / 2, true);
+      };
+
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        this.pinnedBuildingId = null;
+        this.hideWorkPreview();
+        return;
+      }
+
+      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+        e.preventDefault();
+        showIndex(currentIndex + 1);
+        return;
+      }
+
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        showIndex(currentIndex - 1);
+        return;
+      }
+
+      if (e.key === 'Enter') {
+        if (this.pinnedBuildingId) {
+          e.preventDefault();
+          this.openFullscreen();
+        }
+        return;
+      }
+
+      if (e.key === ' ' || e.key === 'Spacebar') {
+        // 空格播放/暂停视频
+        if (this.workPreviewEl?.classList.contains('has-video') && this.workPreviewVidEl) {
+          e.preventDefault();
+          const vid = this.workPreviewVidEl;
+          if (vid.paused) vid.play().catch(() => {});
+          else vid.pause();
+        }
+      }
+    });
+
     // 音频初始化（用户交互后）
     const initAudio = () => {
       this.audioManager.init();
@@ -324,23 +419,82 @@ class App {
   }
 
   startLoading() {
-    // 模拟加载
-    let loadProgress = 0;
     const loaderFill = document.getElementById('loader-fill');
+    const loaderPercent = document.getElementById('loader-percent');
+    const loaderError = document.getElementById('loader-error');
 
-    const loadInterval = setInterval(() => {
-      loadProgress += Math.random() * 12 + 5;
+    let loadProgress = 0;
 
-      if (loadProgress > 100) {
-        loadProgress = 100;
-        clearInterval(loadInterval);
-        this.onLoadComplete();
+    const updateProgress = (p) => {
+      loadProgress = Math.min(100, Math.round(p));
+      if (loaderFill) loaderFill.style.width = loadProgress + '%';
+      if (loaderPercent) loaderPercent.textContent = loadProgress + '%';
+    };
+
+    // 阶段 1：初始化 3D 场景（0-40%）
+    updateProgress(10);
+
+    try {
+      this.sceneManager = new SceneManager();
+      this.scene = this.sceneManager.getScene();
+      updateProgress(20);
+
+      this.cameraController = new CameraController(window.innerWidth / window.innerHeight);
+      this.camera = this.cameraController.getCamera();
+      updateProgress(30);
+
+      this.renderer.setSize(window.innerWidth, window.innerHeight);
+      updateProgress(40);
+    } catch (e) {
+      console.error('[App] Scene init failed:', e);
+      if (loaderError) {
+        loaderError.textContent = '3D scene failed to initialize. Please refresh or try a different browser.';
+        loaderError.style.display = 'block';
       }
+      return;
+    }
 
-      if (loaderFill) {
-        loaderFill.style.width = loadProgress + '%';
+    // 阶段 2：生成建筑和效果（40-70%）
+    try {
+      this.buildings = new Buildings();
+      this.buildingsGroup = this.buildings.getGroup();
+      this.hitboxMeshes = this.buildings.getHitboxMeshes();
+      this.scene.add(this.buildingsGroup);
+      updateProgress(50);
+
+      this.holoBillboard = new HoloBillboard();
+      this.scene.add(this.holoBillboard.getGroup());
+      this.neonSigns = new NeonSigns();
+      this.scene.add(this.neonSigns.getGroup());
+      this.pointLights = new PointLights();
+      this.scene.add(this.pointLights.getGroup());
+      updateProgress(60);
+
+      this.particles = new ParticleSystem();
+      this.scene.add(this.particles.getMesh());
+      this.volumetricLight = new VolumetricLight();
+      this.scene.add(this.volumetricLight.getGroup());
+      updateProgress(70);
+    } catch (e) {
+      console.error('[App] Effects init failed:', e);
+      if (loaderError) {
+        loaderError.textContent = 'Scene effects failed. The experience may be limited.';
+        loaderError.style.display = 'block';
       }
-    }, 100);
+    }
+
+    // 阶段 3：后处理（70-90%）
+    try {
+      this.postProcessing = new PostProcessing(this.renderer, this.scene, this.camera);
+      updateProgress(90);
+    } catch (e) {
+      console.error('[App] PostFX init failed:', e);
+      // 后处理失败不阻断，继续运行
+    }
+
+    // 阶段 4：完成（90-100%）
+    updateProgress(100);
+    this.onLoadComplete();
   }
 
   onLoadComplete() {
@@ -397,9 +551,24 @@ class App {
 
   setActiveWork(work) {
     if (!work?.id) return;
+
+    // 同一个 work 不重复处理
+    if (this.activeWorkId === work.id) return;
+
     this.activeWorkId = work.id;
+
+    // 同步 URL hash（避免 hashchange 循环：先比对再 set）
+    const route = `/work/${encodeURIComponent(work.slug || work.id)}`;
+    const nextHash = `#${route}`;
+    if (location.hash !== nextHash) {
+      history.replaceState(null, '', nextHash);
+    }
+
     const media = work.media;
-    if (!media?.src || media.src === this._currentMediaSrc) return;
+    if (!media?.src) return;
+
+    // 懒加载：同一个媒体不重复切换
+    if (media.src === this._currentMediaSrc) return;
     this._currentMediaSrc = media.src;
     this.setWorkPreviewMedia(media);
   }
@@ -419,6 +588,7 @@ class App {
         vid.setAttribute('data-src', fullSrc);
         vid.pause();
         vid.src = src;
+        vid.preload = 'metadata'; // 只预加载首帧，播放时才加载完整视频
         vid.oncanplay = () => {
           vid.play().catch(() => {});
           vid.oncanplay = null;
@@ -432,7 +602,12 @@ class App {
       vid.style.display = 'none';
       this.workPreviewEl.classList.remove('has-video');
       img.style.display = 'block';
-      img.src = src;
+      // 图片懒加载：先清空 src，再设置新 src
+      if (img.src !== location.origin + src) {
+        img.src = src;
+        img.onload = () => { img.style.opacity = '1'; };
+        img.onerror = () => { img.style.opacity = '0'; };
+      }
     }
   }
 
@@ -475,6 +650,45 @@ class App {
     this.workPreviewEl.classList.remove('visible', 'pinned');
     this.workPreviewEl.setAttribute('aria-hidden', 'true');
     if (this.workPreviewVidEl) this.workPreviewVidEl.pause();
+
+    // 清理 hash（不触发跳转）
+    if (location.hash.startsWith('#/work/')) {
+      history.replaceState(null, '', '#');
+    }
+  }
+
+  // --- 分享当前作品 ---
+  shareCurrentWork() {
+    const work = this.getActiveWork();
+    if (!work?.slug) return;
+
+    const url = location.origin + location.pathname + '#/work/' + encodeURIComponent(work.slug);
+    navigator.clipboard.writeText(url).then(() => {
+      // 按钮反馈
+      const btn = document.getElementById('share-btn');
+      if (btn) {
+        btn.style.borderColor = 'rgba(159, 220, 255, 0.9)';
+        btn.style.background = 'rgba(7, 11, 18, 0.85)';
+        setTimeout(() => {
+          btn.style.borderColor = '';
+          btn.style.background = '';
+        }, 1000);
+      }
+      // Toast 提示
+      const toast = document.getElementById('share-toast');
+      if (toast) {
+        toast.classList.add('visible');
+        setTimeout(() => toast.classList.remove('visible'), 2000);
+      }
+    }).catch(() => {
+      // 降级：尝试用 share API
+      if (navigator.share) {
+        navigator.share({
+          title: `${work.title} — Neon Horizon`,
+          url: url,
+        }).catch(() => {});
+      }
+    });
   }
 
   // --- 全屏查看器 ---
@@ -515,10 +729,39 @@ class App {
       fsVid.pause();
       fsVid.src = '';
     }
+
+    // 关闭全屏后保持当前 work 的 hash，不清理
+  }
+
+  // --- URL Hash Routing ---
+  onHashChange() {
+    const hash = location.hash || '';
+    const prefix = '#/work/';
+    if (!hash.startsWith(prefix)) return;
+
+    const key = decodeURIComponent(hash.slice(prefix.length));
+    const work = this.workBySlug.get(key) || this.workById.get(key);
+    if (!work) return;
+
+    // 找到对应的 section，获取 target progress
+    const section = this.sections.find(s => s.workId === work.id);
+    const targetProgress = section ? section.start : 0;
+
+    // 相机平滑飞行到目标位置
+    this.cameraController.smoothScrollTo(targetProgress);
+    this.scrollHijacked = true;
+
+    // 固定并显示预览
+    this.pinnedBuildingId = work.buildingId || null;
+    this.setActiveWork(work);
+    this.showWorkPreviewAt(window.innerWidth / 2, window.innerHeight / 2, true);
   }
 
   // --- hover / raycast ---
   updateHover() {
+    // 飞行期间暂停 raycast，避免预览框被飞行动态覆盖
+    if (this.scrollHijacked && this.cameraController.isFlying()) return;
+
     if (!this.camera || !this.hitboxMeshes?.length) return;
     if (Math.abs(this.mouseNDC.x) > 2 || Math.abs(this.mouseNDC.y) > 2) return;
 

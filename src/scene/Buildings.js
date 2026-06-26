@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { CONFIG } from '../config.js';
+import worksData from '../data/works.json';
 
 // 全场景共享材质实例，避免每栋楼 new 新材质
 const _sharedMats = {
@@ -275,11 +276,19 @@ export class Buildings {
 
   generate() {
     const { buildingSpacing, buildingDensity } = CONFIG.SCENE;
+
+    // 从 works.json 提取所有 buildingId，算出左右侧各需多少栋
+    const requiredIds = new Set(worksData.works.map(w => w.buildingId).filter(Boolean));
+    const maxLeft = Math.max(...[...requiredIds].filter(id => id.startsWith('bldg-left-')).map(id => parseInt(id.replace('bldg-left-', ''), 10)), -1) + 1;
+    const maxRight = Math.max(...[...requiredIds].filter(id => id.startsWith('bldg-right-')).map(id => parseInt(id.replace('bldg-right-', ''), 10)), -1) + 1;
+
     let leftIndex = 0;
     let rightIndex = 0;
 
     for (let z = 20; z > -700; z -= buildingSpacing) {
-      if (Math.random() < buildingDensity) {
+      // 左侧：前 maxLeft 轮强制生成（保证 works.json 需要的 ID 必定存在），之后概率填充
+      const leftRequired = leftIndex < maxLeft;
+      if (leftRequired || Math.random() < buildingDensity) {
         const { heightBase, heightRange, heightPow } = CONFIG.SCENE;
         const h = heightBase + Math.pow(Math.random(), heightPow) * heightRange;
         const w = 9 + Math.random() * 7;
@@ -295,7 +304,9 @@ export class Buildings {
         this.buildings.add(group);
       }
 
-      if (Math.random() < buildingDensity) {
+      // 右侧：前 maxRight 轮强制生成，之后概率填充
+      const rightRequired = rightIndex < maxRight;
+      if (rightRequired || Math.random() < buildingDensity) {
         const { heightBase, heightRange, heightPow } = CONFIG.SCENE;
         const h = heightBase + Math.pow(Math.random(), heightPow) * heightRange;
         const w = 9 + Math.random() * 7;
