@@ -46,6 +46,9 @@ class App {
     // screen-space pointer
     this.lastPointer = { x: window.innerWidth / 2, y: window.innerHeight / 2 };
 
+    // 视频缓存：已加载过的视频 src → { ready: bool, element: video }
+    this.videoCache = new Map();
+
     this.init();
   }
 
@@ -423,28 +426,23 @@ class App {
     const loaderPercent = document.getElementById('loader-percent');
     const loaderError = document.getElementById('loader-error');
 
-    let loadProgress = 0;
-
     const updateProgress = (p) => {
-      loadProgress = Math.min(100, Math.round(p));
+      const loadProgress = Math.min(100, Math.round(p));
       if (loaderFill) loaderFill.style.width = loadProgress + '%';
       if (loaderPercent) loaderPercent.textContent = loadProgress + '%';
     };
 
-    // 阶段 1：初始化 3D 场景（0-40%）
-    updateProgress(10);
-
+    // --- 阶段 1：初始化 3D 场景（0-30%）---
+    let sceneReady = false;
     try {
       this.sceneManager = new SceneManager();
       this.scene = this.sceneManager.getScene();
-      updateProgress(20);
 
       this.cameraController = new CameraController(window.innerWidth / window.innerHeight);
       this.camera = this.cameraController.getCamera();
-      updateProgress(30);
 
       this.renderer.setSize(window.innerWidth, window.innerHeight);
-      updateProgress(40);
+      sceneReady = true;
     } catch (e) {
       console.error('[App] Scene init failed:', e);
       if (loaderError) {
@@ -453,14 +451,14 @@ class App {
       }
       return;
     }
+    updateProgress(30);
 
-    // 阶段 2：生成建筑和效果（40-70%）
+    // --- 阶段 2：生成建筑和效果（30-50%）---
     try {
       this.buildings = new Buildings();
       this.buildingsGroup = this.buildings.getGroup();
       this.hitboxMeshes = this.buildings.getHitboxMeshes();
       this.scene.add(this.buildingsGroup);
-      updateProgress(50);
 
       this.holoBillboard = new HoloBillboard();
       this.scene.add(this.holoBillboard.getGroup());
@@ -468,13 +466,11 @@ class App {
       this.scene.add(this.neonSigns.getGroup());
       this.pointLights = new PointLights();
       this.scene.add(this.pointLights.getGroup());
-      updateProgress(60);
 
       this.particles = new ParticleSystem();
       this.scene.add(this.particles.getMesh());
       this.volumetricLight = new VolumetricLight();
       this.scene.add(this.volumetricLight.getGroup());
-      updateProgress(70);
     } catch (e) {
       console.error('[App] Effects init failed:', e);
       if (loaderError) {
@@ -483,18 +479,59 @@ class App {
       }
     }
 
-    // 阶段 3：后处理（70-90%）
+    // --- 阶段 3：后处理（50-60%）---
     try {
       this.postProcessing = new PostProcessing(this.renderer, this.scene, this.camera);
-      updateProgress(90);
     } catch (e) {
       console.error('[App] PostFX init failed:', e);
       // 后处理失败不阻断，继续运行
     }
+    updateProgress(60);
 
-    // 阶段 4：完成（90-100%）
-    updateProgress(100);
-    this.onLoadComplete();
+    // --- 阶段 4：加载所有图片/视频媒体（60-100%）---
+    const assets = this.works
+      .filter(w => w.media?.src)
+      .map(w => ({ src: w.media.src, type: w.media.type }));
+
+    const totalAssets = assets.length;
+    const loaded = { images: 0, videos: 0 };
+
+    // 预加载图片
+    const imagePromises = assets
+      .filter(a => a.type === 'image')
+      .map(a =>
+        new Promise((resolve) => {
+          const img = new Image();
+          img.onload = () => resolve();
+          img.onerror = () => resolve(); // 图片加载失败不阻断
+          img.src = a.src;
+        })
+      );
+
+    // 预加载视频（只检查可播放性，不下载完整文件）
+    const videoPromises = assets
+      .filter(a => a.type === 'video')
+      .map(a =>
+        new Promise((resolve) => {
+          const vid = document.createElement('video');
+          vid.preload = 'auto';
+          vid.addEventListener('loadeddata', () => resolve(), { once: true });
+          vid.addEventListener('error', () => resolve(), { once: true });
+          vid.src = a.src;
+        })
+      );
+
+    // 并行加载所有媒体
+    Promise.allSettled([...imagePromises, ...videoPromises]).then((results) => {
+      results.forEach((r, i) => {
+        if (i < imagePromises.length) loaded.images++;
+        else loaded.videos++;
+      });
+
+      const p = 60 + (loaded.images + loaded.videos) / totalAssets * 40;
+      updateProgress(p);
+      this.onLoadComplete();
+    });
   }
 
   onLoadComplete() {
@@ -583,19 +620,44 @@ class App {
       img.style.display = 'none';
       vid.style.display = 'block';
       this.workPreviewEl.classList.add('has-video');
-      const fullSrc = location.origin + src;
-      if (vid.getAttribute('data-src') !== fullSrc) {
-        vid.setAttribute('data-src', fullSrc);
+
+      // 视频缓存：用 src 作为 key，已加载过的直接复用
+      const cacheKey = location.origin + src;
+      const cached = this.videoCache.get(cacheKey);
+
+      if (cached && cached.ready) {
+        // 命中缓存：直接复用已加载的视频元素
+        vid.pause();
+        vid.src = '';
+        vid.poster = '';
+        vid.removeAttribute('src');
+        vid.load();
+        // 直接克隆缓存元素的内容（保留已解码的帧）
+        vid.currentTime = cached.currentTime || 0;
+        vid.play().catch(() => {});
+      } else {
+        // 未命中缓存：从头加载
+        if (cached) cached.ready = false;
+        this.videoCache.set(cacheKey, { ready: false, currentTime: 0 });
+
         vid.pause();
         vid.src = src;
-        vid.preload = 'metadata'; // 只预加载首帧，播放时才加载完整视频
-        vid.oncanplay = () => {
+        vid.preload = 'auto';
+        vid.onloadeddata = () => {
+          const entry = this.videoCache.get(cacheKey);
+          if (entry) {
+            entry.ready = true;
+            entry.currentTime = 0;
+          }
+          vid.onloadeddata = null;
           vid.play().catch(() => {});
-          vid.oncanplay = null;
+        };
+        vid.onerror = () => {
+          this.videoCache.delete(cacheKey);
+          vid.onloadeddata = null;
+          vid.onerror = null;
         };
         vid.load();
-      } else {
-        vid.play().catch(() => {});
       }
     } else {
       vid.pause();
@@ -706,9 +768,24 @@ class App {
     if (type === 'video') {
       fsImg.style.display = 'none';
       fsVid.style.display = 'block';
-      fsVid.src = src;
-      fsVid.load();
-      fsVid.play().catch(() => {});
+
+      // 全屏视频也走缓存
+      const cacheKey = location.origin + src;
+      const cached = this.videoCache.get(cacheKey);
+      if (cached && cached.ready) {
+        fsVid.src = src;
+        fsVid.preload = 'auto';
+        fsVid.onloadeddata = () => { fsVid.play().catch(() => {}); fsVid.onloadeddata = null; };
+        fsVid.load();
+      } else {
+        fsVid.src = src;
+        fsVid.preload = 'auto';
+        fsVid.onloadeddata = () => {
+          fsVid.play().catch(() => {});
+          fsVid.onloadeddata = null;
+        };
+        fsVid.load();
+      }
     } else {
       fsVid.pause();
       fsVid.style.display = 'none';
